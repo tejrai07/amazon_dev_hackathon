@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────
+# VyaparSathi — Docker Compose (Dev / EC2 Deployment)
+# Services: MongoDB 7 + FastAPI MCP Server
+# ─────────────────────────────────────────────────────────
+
+services:
+  # ── MongoDB ────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: vyaparsathi-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: vyapar_admin
+      MONGO_INITDB_ROOT_PASSWORD: vyapar_secret_2026
+      MONGO_INITDB_DATABASE: vyaparsathi
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - vyapar-net
+
+  # ── VyaparSathi MCP Server ────────────────────────────
+  vyaparsathi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vyaparsathi-server
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGO_URI: "mongodb://vyapar_admin:vyapar_secret_2026@mongodb:27017"
+      MONGO_DB_NAME: "vyaparsathi"
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8000"
+      SEED_DATA: "true"                # Auto-seed mock data on first run
+    ports:
+      - "8000:8000"
+    networks:
+      - vyapar-net
+
+volumes:
+  mongo_data:
+    driver: local
+
+networks:
+  vyapar-net:
+    driver: bridge

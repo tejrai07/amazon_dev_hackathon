@@ -1,0 +1,22 @@
+# VyaparSathi — MCP Financial Agent for Indian Retailers
+# Python 3.11+
+
+# --- MCP Protocol ---
+mcp[cli]>=1.9.0
+
+# --- Web / Transport ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sse-starlette>=2.1.0
+starlette>=0.38.0
+
+# --- Database ---
+motor>=3.5.0
+pymongo>=4.8.0
+
+# --- Data Validation ---
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+
+# --- Utilities ---
+python-dateutil>=2.9.0

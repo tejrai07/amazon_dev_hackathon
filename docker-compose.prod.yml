@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────
+# VyaparSathi — Production Docker Compose (AWS EC2)
+# Services: MongoDB 7 + FastAPI MCP Server + Nginx TLS
+# ─────────────────────────────────────────────────────────
+
+services:
+  # ── MongoDB ────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: vyaparsathi-mongo
+    restart: always
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-vyapar_admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_NAME:-vyaparsathi}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - vyapar-net
+
+  # ── VyaparSathi MCP Server ────────────────────────────
+  vyaparsathi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vyaparsathi-server
+    restart: always
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      MONGO_URI: "mongodb://${MONGO_USER:-vyapar_admin}:${MONGO_PASSWORD}@mongodb:27017"
+      MONGO_DB_NAME: ${MONGO_DB_NAME:-vyaparsathi}
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8000"
+      SEED_DATA: ${SEED_DATA:-false}
+    # No host port mapping — only accessible via nginx
+    expose:
+      - "8000"
+    networks:
+      - vyapar-net
+
+  # ── Nginx TLS Reverse Proxy ───────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: vyaparsathi-nginx
+    restart: always
+    depends_on:
+      vyaparsathi:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - certbot_webroot:/var/www/certbot:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/nginx-health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - vyapar-net
+
+volumes:
+  mongo_data:
+    driver: local
+  certbot_webroot:
+    driver: local
+
+networks:
+  vyapar-net:
+    driver: bridge
